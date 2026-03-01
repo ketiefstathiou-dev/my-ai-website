@@ -1,21 +1,30 @@
 export default async function handler(req, res) {
+  // ✅ CORS: allow your GitHub Pages site (or allow all)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Browser sends an OPTIONS request first sometimes (preflight)
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   // Allow only POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
   }
 
-  // Read message
-  const { message } = req.body || {};
-  if (!message || typeof message !== "string") {
-    return res.status(400).json({ error: "Missing message" });
-  }
+  try {
+    const { message } = req.body || {};
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Missing message" });
+    }
 
-  // Basic limits to avoid spam
-  if (message.length > 500) {
-    return res.status(400).json({ error: "Message too long (max 500 chars)" });
-  }
+    if (message.length > 500) {
+      return res.status(400).json({ error: "Message too long (max 500 chars)" });
+    }
 
-  const SYSTEM_PROMPT = `
+    const SYSTEM_PROMPT = `
 You are "Zyro".
 Personality:
 - Confident, slightly arrogant
@@ -26,7 +35,6 @@ Rules:
 - If you don't know, say so briefly
 `;
 
-  try {
     const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
