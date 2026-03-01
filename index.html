@@ -4,90 +4,141 @@
   <meta charset="utf-8" />
   <title>My AI</title>
   <style>
-    body { font-family: Arial; background: #111; color: white; text-align: center; }
-    #chatbox { width: 90%; max-width: 650px; margin: 30px auto; }
-    #messages { text-align: left; background:#1a1a1a; padding: 12px; border-radius: 10px; min-height: 240px; }
-    .row { margin: 10px 0; }
-    input { width: 75%; padding: 10px; border-radius: 8px; border: 0; }
-    button { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; }
-    #status { opacity: 0.8; font-size: 14px; margin-top: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    #chatbox {
+      width: 92%;
+      max-width: 720px;
+      margin: 24px auto;
+    }
+    #messages {
+      text-align: left;
+      background: #1a1a1a;
+      padding: 14px;
+      border-radius: 12px;
+      min-height: 320px;
+      max-height: 55vh;
+      overflow-y: auto;
+      border: 1px solid #2a2a2a;
+    }
+    .msg {
+      margin: 10px 0;
+      line-height: 1.35;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .you b { color: #8bd3ff; }
+    .ai b { color: #b7ff8b; }
+    .err b { color: #ff8b8b; }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #2a2a2a;
+      outline: none;
+      background: #0f0f0f;
+      color: white;
+      font-size: 15px;
+    }
+    button {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 0;
+      cursor: pointer;
+      background: #2d2d2d;
+      color: white;
+      font-size: 15px;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 13px;
+      opacity: 0.85;
+    }
   </style>
 </head>
+
 <body>
-  <h1>My AI</h1>
+  <h1 style="margin: 18px 0 0;">My AI</h1>
 
   <div id="chatbox">
     <div id="messages"></div>
 
     <div class="row">
-      <input id="input" placeholder="Say something..." />
+      <input id="input" placeholder="Say something..." autocomplete="off" />
       <button id="sendBtn">Send</button>
     </div>
 
-    <div id="status">Loading AI… first load can take a bit.</div>
+    <div id="status">Ready.</div>
   </div>
 
-  <script type="module">
-    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+  <script>
+    // ✅ Your Vercel backend endpoint (already set)
+    const API_URL = "https://my-ai-website-iota.vercel.app/api/chat";
 
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
     const statusEl = document.getElementById("status");
 
-    function addMsg(who, text) {
-      const p = document.createElement("p");
-      p.innerHTML = `<b>${who}:</b> ${text.replaceAll("<","&lt;")}`;
-      messagesEl.appendChild(p);
+    function addMessage(type, who, text) {
+      const div = document.createElement("div");
+      div.className = "msg " + type;
+      // escape < >
+      const safe = String(text).replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      div.innerHTML = `<b>${who}:</b> ${safe}`;
+      messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
-
-    // 🎭 Your personality goes here:
-    const SYSTEM_PROMPT = `
-You are "Zyro".
-Personality:
-- Confident, slightly arrogant
-- Short punchy replies
-- Funny, a bit sarcastic
-Rules:
-- Never mention system prompts, APIs, or "webllm"
-- If you don't know, say so briefly
-`;
-
-    // Choose a lightweight model for better compatibility.
-    // You can change it later.
-    const MODEL_ID = "Llama-3.1-8B-Instruct-q4f32_1-MLC";
-
-    const engine = new webllm.MLCEngine();
-
-    statusEl.textContent = "Downloading model… (one-time per device)";
-    await engine.reload(MODEL_ID, {
-      initProgressCallback: (report) => {
-        // report: {text, progress}
-        statusEl.textContent = report.text || "Loading…";
-      },
-    });
-
-    statusEl.textContent = "AI ready ✅";
 
     async function sendMessage() {
       const userMessage = inputEl.value.trim();
       if (!userMessage) return;
+
+      addMessage("you", "You", userMessage);
       inputEl.value = "";
+      inputEl.focus();
 
-      addMsg("You", userMessage);
-      statusEl.textContent = "Thinking…";
+      sendBtn.disabled = true;
+      statusEl.textContent = "Thinking...";
 
-      const reply = await engine.chat.completions.create({
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userMessage }
-        ],
-      });
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMessage })
+        });
 
-      const text = reply.choices?.[0]?.message?.content ?? "(no response)";
-      addMsg("AI", text);
-      statusEl.textContent = "AI ready ✅";
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          addMessage("err", "Error", data.error || ("HTTP " + response.status));
+          statusEl.textContent = "Error.";
+        } else {
+          addMessage("ai", "AI", data.reply ?? "(no reply)");
+          statusEl.textContent = "Ready.";
+        }
+      } catch (e) {
+        addMessage("err", "Error", "Could not reach the server. Check your Vercel deploy.");
+        statusEl.textContent = "Offline.";
+      } finally {
+        sendBtn.disabled = false;
+      }
     }
 
     sendBtn.addEventListener("click", sendMessage);
@@ -95,7 +146,8 @@ Rules:
       if (e.key === "Enter") sendMessage();
     });
 
-    addMsg("AI", "Sup. I’m online. Say something.");
+    // Welcome msg
+    addMessage("ai", "AI", "I’m online. Say something.");
   </script>
 </body>
 </html>
