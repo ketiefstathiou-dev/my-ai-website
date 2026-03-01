@@ -4,11 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Θεομήτωρ Bot</title>
+
   <style>
     :root{
       --bg1:#07130c; --bg2:#0b1d12; --card:#0f1a14cc;
       --text:#eef7f0; --muted:#b7c7bc; --accent:#9ff0b2;
       --shadow: 0 18px 60px rgba(0,0,0,.55); --radius: 18px;
+      --link:#cfe7ff;
     }
     *{box-sizing:border-box}
     body{
@@ -23,14 +25,20 @@
       min-height:100vh; overflow-x:hidden;
     }
 
+    /* Blossom scene */
     .scene{ position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
     .trunk{ position:absolute; top:-5vh; bottom:-10vh; width:240px; opacity:.55; }
     .trunk.left{ left:-90px; transform: rotate(-2deg); }
     .trunk.right{ right:-90px; transform: scaleX(-1) rotate(-2deg); }
     .trunk::before{
       content:""; position:absolute; inset:0;
-      background: repeating-linear-gradient(90deg, rgba(55,35,25,.75), rgba(55,35,25,.75) 10px, rgba(35,22,16,.75) 10px, rgba(35,22,16,.75) 20px);
-      border-radius:140px; box-shadow: inset 0 0 50px rgba(0,0,0,.45);
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(55,35,25,.75), rgba(55,35,25,.75) 10px,
+        rgba(35,22,16,.75) 10px, rgba(35,22,16,.75) 20px
+      );
+      border-radius:140px;
+      box-shadow: inset 0 0 50px rgba(0,0,0,.45);
     }
     .canopy{
       position:absolute; top:-80px; left:-60px; right:-60px; height:55%;
@@ -54,6 +62,7 @@
       100%{ transform: translateY(110vh) translateX(120px) rotate(380deg); opacity:0; }
     }
 
+    /* Layout */
     .wrap{ position:relative; z-index:1; padding:32px 14px 40px; max-width:980px; margin:0 auto; }
     .header{ display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:14px; text-align:center; }
     .logo{
@@ -81,9 +90,32 @@
       gap:10px; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.08);
     }
     .hint{ font-size:13px; color:var(--muted); }
-    #messages{ padding:14px; height:min(56vh, 520px); overflow-y:auto; text-align:left; white-space:pre-wrap; word-wrap:break-word; }
-    .msg{ margin:10px 0; line-height:1.4; }
-    .you b{ color:#8bd3ff; } .ai b{ color: var(--accent); } .err b{ color:#ff8b8b; }
+
+    #messages{
+      padding:14px;
+      height:min(56vh, 520px);
+      overflow-y:auto;
+      text-align:left;
+      word-wrap:break-word;
+    }
+
+    .msg{ margin:10px 0; line-height:1.45; }
+    .you b{ color:#8bd3ff; }
+    .ai b{ color: var(--accent); }
+    .err b{ color:#ff8b8b; }
+
+    /* Pretty formatting for bot output */
+    .bubble{
+      display:block;
+      margin-top:6px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+    }
+    .bubble ul{ margin:8px 0 0 18px; padding:0; }
+    .bubble li{ margin:4px 0; }
+    .bubble a{ color: var(--link); text-decoration: underline; }
 
     .composer{ display:flex; gap:10px; padding:12px; border-top:1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.12); }
     input{
@@ -96,11 +128,19 @@
       color: var(--text); cursor:pointer; font-size:15px; min-width:92px;
     }
     button:disabled{ opacity:.55; cursor:not-allowed; }
+
     #status{ padding:10px 14px; text-align:center; font-size:13px; color:var(--muted); }
+
     .tools{ display:flex; gap:10px; padding: 0 14px 14px; justify-content:flex-end; }
     .smallbtn{ min-width:auto; font-size:13px; padding:8px 10px; opacity:.9; }
+
+    @media (max-width:520px){
+      .trunk{ opacity:.42; }
+      button{ min-width: 80px; }
+    }
   </style>
 </head>
+
 <body>
   <div class="scene" aria-hidden="true">
     <div class="trunk left"><div class="canopy"></div></div>
@@ -118,7 +158,7 @@
 
     <div class="card">
       <div class="topbar">
-        <div class="hint">Αποθηκεύω τη συζήτηση (μνήμη) μέσα στον browser σου.</div>
+        <div class="hint">Μνήμη: κρατάω τα τελευταία μηνύματα στον browser σου. (Μπορείς να την καθαρίσεις.)</div>
       </div>
 
       <div id="messages"></div>
@@ -138,7 +178,7 @@
 
   <script>
     const API_URL = "https://my-ai-website-iota.vercel.app/api/chat";
-    const STORAGE_KEY = "theomitor_chat_history_v1";
+    const STORAGE_KEY = "theomitor_chat_history_v2";
 
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("input");
@@ -150,22 +190,70 @@
       return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
     }
 
-    function formatTextForHtml(text) {
-  // escape first
-  let safe = escapeHtml(text);
+    function formatAssistantHtml(text) {
+      // Escape HTML
+      let safe = escapeHtml(text);
 
-  // turn URLs into clickable links (optional but nice)
-  safe = safe.replace(
-    /(https?:\/\/[^\s]+)/g,
-    `<a href="$1" target="_blank" rel="noopener">$1</a>`
-  );
+      // Make URLs clickable
+      safe = safe.replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" rel="noopener">$1</a>`);
 
-  // convert newlines to <br>
-  safe = safe.replaceAll("\n", "<br>");
+      // Split into lines
+      const lines = safe.split("\n");
 
-  // make simple bullet points look nicer
-  // lines starting with "- " or "• " will get a
-      
+      // Build HTML with bullet list support
+      let html = "";
+      let inList = false;
+
+      const closeList = () => {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+      };
+
+      for (let rawLine of lines) {
+        const line = rawLine.trimEnd();
+
+        // Detect bullet lines: "- " or "• "
+        const isBullet = line.startsWith("- ") || line.startsWith("• ");
+
+        if (isBullet) {
+          if (!inList) {
+            html += "<ul>";
+            inList = true;
+          }
+          const item = line.replace(/^(-\s+|•\s+)/, "");
+          html += `<li>${item}</li>`;
+        } else {
+          closeList();
+          if (line.trim() === "") {
+            html += "<br>";
+          } else {
+            html += `<div>${line}</div>`;
+          }
+        }
+      }
+      closeList();
+
+      return html;
+    }
+
+    function addMessageToUI(type, who, text) {
+      const div = document.createElement("div");
+      div.className = "msg " + type;
+
+      if (type === "ai") {
+        div.innerHTML = `<b>${escapeHtml(who)}:</b><div class="bubble">${formatAssistantHtml(text)}</div>`;
+      } else {
+        // user/error plain text
+        const safe = escapeHtml(text).replaceAll("\n", "<br>");
+        div.innerHTML = `<b>${escapeHtml(who)}:</b> <span class="bubble" style="display:inline-block">${safe}</span>`;
+      }
+
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
     function loadHistory() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -178,17 +266,17 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
     }
 
-    // History format for backend: [{role:"user"|"assistant", content:"..."}]
     let history = loadHistory();
 
     function renderHistory() {
       messagesEl.innerHTML = "";
+      if (history.length === 0) {
+        addMessageToUI("ai", "Θεομήτωρ Bot", "Γεια σου! 🤖🌸 Πώς μπορώ να βοηθήσω;");
+        return;
+      }
       for (const m of history) {
         if (m.role === "user") addMessageToUI("you", "Εσύ", m.content);
         if (m.role === "assistant") addMessageToUI("ai", "Θεομήτωρ Bot", m.content);
-      }
-      if (history.length === 0) {
-        addMessageToUI("ai", "Θεομήτωρ Bot", "Γεια σου! 🤖🌸 Πώς μπορώ να βοηθήσω;");
       }
     }
 
@@ -198,7 +286,6 @@
       const userMessage = inputEl.value.trim();
       if (!userMessage) return;
 
-      // update local history + UI
       history.push({ role: "user", content: userMessage });
       saveHistory(history);
       addMessageToUI("you", "Εσύ", userMessage);
@@ -208,7 +295,6 @@
       sendBtn.disabled = true;
       statusEl.textContent = "Σκέφτομαι...";
 
-      // send only last 12 messages (memory window)
       const windowHistory = history.slice(-12);
 
       try {
