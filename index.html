@@ -4,77 +4,36 @@
   <meta charset="utf-8" />
   <title>My AI</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    #chatbox {
-      width: 92%;
-      max-width: 720px;
-      margin: 24px auto;
-    }
+    body { font-family: Arial, sans-serif; background:#111; color:#fff; margin:0; }
+    h1 { text-align:center; margin:18px 0; }
+    #chatbox { width:92%; max-width:720px; margin:0 auto 24px; }
     #messages {
-      text-align: left;
-      background: #1a1a1a;
-      padding: 14px;
-      border-radius: 12px;
-      min-height: 320px;
-      max-height: 55vh;
-      overflow-y: auto;
-      border: 1px solid #2a2a2a;
+      background:#1a1a1a; border:1px solid #2a2a2a;
+      border-radius:12px; padding:14px;
+      min-height:320px; max-height:55vh; overflow-y:auto;
+      white-space:pre-wrap; word-wrap:break-word;
     }
-    .msg {
-      margin: 10px 0;
-      line-height: 1.35;
-      word-wrap: break-word;
-      white-space: pre-wrap;
-    }
-    .you b { color: #8bd3ff; }
-    .ai b { color: #b7ff8b; }
-    .err b { color: #ff8b8b; }
+    .msg { margin:10px 0; line-height:1.35; }
+    .you b { color:#8bd3ff; }
+    .ai b { color:#b7ff8b; }
+    .err b { color:#ff8b8b; }
 
-    .row {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-    }
+    .row { display:flex; gap:10px; margin-top:12px; }
     input {
-      flex: 1;
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid #2a2a2a;
-      outline: none;
-      background: #0f0f0f;
-      color: white;
-      font-size: 15px;
+      flex:1; padding:12px; border-radius:10px;
+      border:1px solid #2a2a2a; outline:none;
+      background:#0f0f0f; color:#fff; font-size:15px;
     }
     button {
-      padding: 12px 14px;
-      border-radius: 10px;
-      border: 0;
-      cursor: pointer;
-      background: #2d2d2d;
-      color: white;
-      font-size: 15px;
+      padding:12px 14px; border-radius:10px; border:0;
+      cursor:pointer; background:#2d2d2d; color:#fff; font-size:15px;
     }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    #status {
-      margin-top: 10px;
-      font-size: 13px;
-      opacity: 0.85;
-    }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    #status { text-align:center; margin-top:10px; font-size:13px; opacity:.85; }
   </style>
 </head>
-
 <body>
-  <h1 style="margin: 18px 0 0;">My AI</h1>
+  <h1>My AI</h1>
 
   <div id="chatbox">
     <div id="messages"></div>
@@ -88,7 +47,7 @@
   </div>
 
   <script>
-    // ✅ Your Vercel backend endpoint (already set)
+    // ✅ Your Vercel backend endpoint
     const API_URL = "https://my-ai-website-iota.vercel.app/api/chat";
 
     const messagesEl = document.getElementById("messages");
@@ -96,12 +55,14 @@
     const sendBtn = document.getElementById("sendBtn");
     const statusEl = document.getElementById("status");
 
+    function escapeHtml(s) {
+      return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    }
+
     function addMessage(type, who, text) {
       const div = document.createElement("div");
       div.className = "msg " + type;
-      // escape < >
-      const safe = String(text).replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-      div.innerHTML = `<b>${who}:</b> ${safe}`;
+      div.innerHTML = `<b>${escapeHtml(who)}:</b> ${escapeHtml(text)}`;
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -127,14 +88,16 @@
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          addMessage("err", "Error", data.error || ("HTTP " + response.status));
+          // Show detailed server error so you can fix it fast
+          const details = data.details ? JSON.stringify(data.details) : "";
+          addMessage("err", "Error", (data.error || ("HTTP " + response.status)) + (details ? ("\n" + details) : ""));
           statusEl.textContent = "Error.";
         } else {
           addMessage("ai", "AI", data.reply ?? "(no reply)");
           statusEl.textContent = "Ready.";
         }
       } catch (e) {
-        addMessage("err", "Error", "Could not reach the server. Check your Vercel deploy.");
+        addMessage("err", "Error", "Network error: could not reach Vercel endpoint.");
         statusEl.textContent = "Offline.";
       } finally {
         sendBtn.disabled = false;
@@ -146,7 +109,6 @@
       if (e.key === "Enter") sendMessage();
     });
 
-    // Welcome msg
     addMessage("ai", "AI", "I’m online. Say something.");
   </script>
 </body>
